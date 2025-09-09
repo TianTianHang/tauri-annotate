@@ -1,0 +1,251 @@
+/* General Reset and Base Styles */
+:root {
+  font-family: Inter, Avenir, Helvetica, Arial, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  font-weight: 400;
+
+  color-scheme: light dark;
+  color: rgba(255, 255, 255, 0.87);
+  background-color: #242424;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  display: flex;
+  place-items: center;
+  min-width: 320px;
+  min-height: 100vh;
+}
+
+h1 {
+  font-size: 2em;
+  line-height: 1.1;
+}
+
+h2 {
+  margin-top: 1.5rem;
+  margin-bottom: 0.5rem;
+  border-bottom: 1px solid #555;
+  padding-bottom: 0.25rem;
+}
+
+.frame-and-camera-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%; /* Ensure it takes full width of main-content */
+  margin-bottom: 1rem; /* Add some space below it */
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #333;
+}
+
+.frame-and-camera-controls p {
+  margin: 0; /* Remove default paragraph margin */
+  font-size: 1.2em; /* Make frame number slightly larger */
+  font-weight: bold;
+}
+
+.camera-selection .camera-buttons {
+  display: flex;
+  gap: 0.5rem; /* Space between camera buttons */
+}
+
+button {
+  border-radius: 8px;
+  border: 1px solid transparent;
+  padding: 0.6em 1.2em;
+  font-size: 1em;
+  font-weight: 500;
+  font-family: inherit;
+  background-color: #1a1a1a;
+  cursor: pointer;
+  transition: border-color 0.25s;
+  color: white;
+}
+button:hover {
+  border-color: #646cff;
+}
+button:focus,
+button:focus-visible {
+  outline: 4px auto -webkit-focus-ring-color;
+}
+
+.camera-button.selected {
+  background-color: #646cff; /* Highlight color for selected camera */
+  outline: 4px auto -webkit-focus-ring-color;
+}
+button:disabled {
+  background-color: #333;
+  color: #777;
+  cursor: not-allowed;
+  border-color: transparent;
+}
+
+input {
+  border-radius: 8px;
+  border: 1px solid #555;
+  padding: 0.6em 1.2em;
+  font-size: 1em;
+  font-weight: 500;
+  font-family: inherit;
+  color: #f6f6f6;
+  background-color: #2f2f2f;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* --- Annotation Tool Layout --- */
+
+.annotation-tool {
+  display: flex;
+  flex-direction: row;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.sidebar {
+  width: 280px;
+  flex-shrink: 0;
+  background-color: #1e1e1e;
+  padding: 1rem;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.main-content {
+  flex-grow: 1;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  overflow-y: auto;
+}
+
+.main-content h1 {
+  margin-top: 0;
+}
+
+.video-container {
+  position: relative;
+  max-width: 100%;
+  max-height: 80vh;
+  display: grid;
+  place-items: center; /* Shorthand to center items in the grid cell */
+  border: 2px solid #444;
+  background-color: #000;
+}
+
+/* Both image and canvas are placed in the same grid cell to overlap */
+#video-frame,
+#bbox-canvas {
+  grid-column: 1;
+  grid-row: 1;
+  /* Apply the same scaling constraints to both elements */
+  max-width: 100%;
+  max-height: 80vh;
+}
+
+#video-frame {
+  display: block;
+  object-fit: contain; /* Ensures aspect ratio is maintained */
+  z-index: 1; /* Ensure image is below the canvas */
+}
+
+#bbox-canvas {
+  cursor: crosshair;
+  z-index: 2; /* Ensure canvas is on top */
+}
+
+.loading-placeholder {
+  width: 640px;
+  height: 480px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: #333;
+  color: #aaa;
+}
+
+/* --- Component-specific Styles --- */
+
+.control-panel {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
+
+
+
+.settings-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding-bottom: 1rem;
+}
+
+.settings-panel h2 {
+  margin-top: 0;
+}
+
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.input-group {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.input-group input {
+  flex-grow: 1;
+  min-width: 0; /* Prevents input from overflowing */
+}
+
+.manual-annotation {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.person-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  flex-grow: 1;
+}
+
+.person-list li {
+  padding: 0.5rem;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  border: 1px solid transparent;
+}
+
+.person-list li:hover {
+  background-color: #3a3a3a;
+}
+
+.person-list li.selected {
+  background-color: #646cff;
+  color: white;
+  border-color: #8c90ff;
+}
+
+.status-text {
+  font-style: italic;
+  color: #aaa;
+  word-break: break-word;
+}
