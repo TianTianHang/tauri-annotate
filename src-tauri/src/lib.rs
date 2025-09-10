@@ -5,8 +5,10 @@ use serde::{Deserialize, Serialize};
 use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::process::{Child, Command, Stdio, ChildStdin, ChildStdout};
 use std::sync::{Arc, Mutex};
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, State};
 use std::time::{Duration, Instant};
+use tauri::api::path::{app_data_dir};
+use std::path::PathBuf;
 
 #[derive(Serialize, Deserialize, Clone)]
 struct PyConfig {
@@ -82,11 +84,13 @@ fn invoke_python(
     }
 }
 
-fn get_config_path(app: &AppHandle) -> Result<std::path::PathBuf, String> {
-    app.path()
-        .app_data_dir()
-        .map(|d| d.join("py_config.json"))
-        .map_err(|e| e.to_string())
+
+
+fn get_config_path(app: &AppHandle) -> Result<PathBuf, String> {
+    let data_dir = app_data_dir(&app.config())
+        .ok_or_else(|| "Failed to get app data directory".to_string())?;
+    
+    Ok(data_dir.join("py_config.json"))
 }
 
 #[tauri::command]
@@ -162,8 +166,6 @@ async fn restart_python_process(
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_fs::init())
         .manage(PythonChild(Arc::new(Mutex::new(None))))
         .manage(PythonProcess {
             stdin: Mutex::new(None),
