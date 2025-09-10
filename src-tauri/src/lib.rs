@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::process::{Child, Command, Stdio, ChildStdin, ChildStdout};
 use std::sync::{Arc, Mutex};
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, State, Manager};
 use std::time::{Duration, Instant};
 use tauri::api::path::{app_data_dir};
 use std::path::PathBuf;
@@ -32,6 +32,7 @@ fn invoke_python(
     command: String,
     params: serde_json::Value,
     state: State<PythonProcess>,
+    app: AppHandle,
 ) -> Result<String, String> {
     let mut stdin_guard = state.stdin.lock().unwrap();
     let mut reader_guard = state.reader.lock().unwrap();
@@ -74,9 +75,9 @@ fn invoke_python(
                 // 找到了有效的响应，移除前缀和末尾的换行符后返回
                 return Ok(json_payload.trim_end().to_string());
             } else {
-                // 这是一行日志（来自ultralytics等），打印到Rust的控制台以供调试
-                // 它不会被发送到前端
-                eprintln!("[Python stdout] {}", response_line.trim_end());
+                // This is a log line, emit it to the frontend
+                app.emit_all("python-log", format!("[stdout] {}", response_line.trim_end()))
+                    .unwrap();
             }
         }
     } else {
@@ -121,6 +122,7 @@ async fn restart_python_process(
     config: PyConfig,
     child: State<'_, PythonChild>,
     process_state: State<'_, PythonProcess>,
+    app: AppHandle,
 ) -> Result<(), String> {
     // Kill existing process if any
     if let Some(mut child_process) = child.0.lock().unwrap().take() {
@@ -149,10 +151,13 @@ async fn restart_python_process(
         .map_err(|e| format!("Failed to spawn Python process with '{}': {}", interpreter, e))?;
 
     let stderr = new_child.stderr.take().unwrap();
+    let app_handle = app.clone();
     std::thread::spawn(move || {
         let reader = BufReader::new(stderr);
         for line in reader.lines() {
-            eprintln!("[Python stderr] {}", line.unwrap_or_default());
+            if let Ok(line_content) = line {
+                app_handle.emit_all("python-log", format!("[stderr] {}", line_content)).unwrap();
+            }
         }
     });
 

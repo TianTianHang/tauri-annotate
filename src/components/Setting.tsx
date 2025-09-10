@@ -2,13 +2,15 @@
 import { invoke } from "@tauri-apps/api/tauri";
 import { open } from "@tauri-apps/api/dialog";
 import { homeDir } from "@tauri-apps/api/path";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
+import { listen } from '@tauri-apps/api/event';
 
 function Settings({ onApply }: { onApply: () => void }) {
   const [interpreter, setInterpreter] = useState('');
   const [script, setScript] = useState('');
-  const [status, setStatus] = useState('Python process not running.');
+  const [logs, setLogs] = useState<string[]>(['Please configure and start the Python backend.']);
   const [isLoading, setIsLoading] = useState(true);
+  const logContainerRef = useRef<HTMLPreElement>(null);
 
   useEffect(() => {
     invoke('load_py_config')
@@ -19,6 +21,22 @@ function Settings({ onApply }: { onApply: () => void }) {
       .catch(console.error)
       .finally(() => setIsLoading(false));
   }, []);
+
+  useEffect(() => {
+    const unlistenPromise = listen<string>('python-log', (event) => {
+      setLogs(prevLogs => [...prevLogs, event.payload]);
+    });
+
+    return () => {
+      unlistenPromise.then(unlisten => unlisten());
+    };
+  }, []);
+
+  useEffect(() => {
+    if (logContainerRef.current) {
+      logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight;
+    }
+  }, [logs]);
 
   const handleBrowseInterpreter = async () => {
     const selected = await open({
@@ -46,15 +64,15 @@ function Settings({ onApply }: { onApply: () => void }) {
       alert("Please select both a Python interpreter and a script.");
       return;
     }
-    setStatus('Restarting Python process...');
+    setLogs(prev => [...prev, 'Restarting Python process...']);
     try {
       const config = { interpreter, script };
       await invoke('save_py_config', { config });
       await invoke('restart_python_process', { config });
-      setStatus('Python process started successfully.');
+      setLogs(prev => [...prev, 'Python process started successfully.']);
       onApply();
     } catch (error) {
-      setStatus(`Error: ${error}`);
+      setLogs(prev => [...prev, `Error restarting Python process:\n${error}`]);
       console.error(error);
     }
   };
@@ -95,7 +113,21 @@ function Settings({ onApply }: { onApply: () => void }) {
       <button onClick={handleApply} disabled={!interpreter || !script}>
         Save and Start Backend
       </button>
-      <p className="status-text">Status: {status}</p>
+      <h4 style={{ marginTop: '1rem', marginBottom: '0.5rem' }}>Backend Logs</h4>
+      <pre
+        ref={logContainerRef}
+        className="status-text"
+        style={{
+          height: '150px',
+          overflowY: 'auto',
+          border: '1px solid #ccc',
+          padding: '10px',
+          whiteSpace: 'pre-wrap',
+          wordBreak: 'break-word',
+        }}
+      >
+        {logs.join('\n')}
+      </pre>
     </div>
   );
 }
