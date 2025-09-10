@@ -291,6 +291,33 @@ function App() {
     }
   }
 
+  async function runFinalAnalysis() {
+    if (idsToSave.size === 0) {
+      alert("Please select one or more persons to analyze from the 'Persons to Save' list.");
+      return;
+    }
+    setIsPlaying(false); // Stop playback during analysis
+    try {
+      alert("Starting final analysis... This may take a moment.");
+      const responseStr = await invoke<string>("invoke_python", {
+        command: "run_final_analysis",
+        params: {
+          person_ids: Array.from(idsToSave),
+        },
+      });
+      const response = JSON.parse(responseStr);
+
+      if (response.status === 'success') {
+        alert("Final analysis completed successfully!");
+      } else {
+        alert(`Analysis failed: ${response.message}`);
+      }
+    } catch (error) {
+      console.error("Error running final analysis:", error);
+      alert(`An error occurred during analysis: ${error}`);
+    }
+  }
+
   // --- Canvas Drawing Logic ---
 
   const getCanvasPoint = (e: MouseEvent<HTMLCanvasElement>): Point | null => {
@@ -446,6 +473,7 @@ function App() {
             {isPlaying ? "Pause" : "Auto Play"}
           </button>
           <button onClick={saveSelectedData}>Save Selected</button>
+          <button onClick={runFinalAnalysis}>Run Analysis</button>
         </div>
 
         <div className="form-group" style={{ marginTop: '1rem' }}>
