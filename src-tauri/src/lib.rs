@@ -56,7 +56,7 @@ async fn invoke_python(
             .map_err(|e| e.to_string())?;
         stdin.flush().map_err(|e| e.to_string())?;
 
-        let timeout = Duration::from_secs(5);
+        let timeout = Duration::from_secs(30);
         let start_time = Instant::now();
         const RPC_PREFIX: &str = "__JSON_RPC__";
         // 循环读取，直到找到一个带有 __JSON_RPC__ 前缀的有效响应
