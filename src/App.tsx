@@ -11,7 +11,7 @@ import Settings from "./components/Setting";
 
 export interface Bbox {
   id: number;
-  box: [number, number, number, number]; // [x1, y1, x2, y2]
+  box: [number, number, number, number, number, number, number, number]; // [x1_a, y1_a, x2_a, y2_a, x1_b, y1_b, x2_b, y2_b]
   color: string;
 }
 
@@ -42,7 +42,10 @@ function App() {
   const [selectedCamId, setSelectedCamId] = useState<string | null>(null);
   const [pythonReady, setPythonReady] = useState(false);
   const [isDrawing, setIsDrawing] = useState(false);
-  const [currentBbox, setCurrentBbox] = useState<[number, number, number, number] | null>(null);
+  // 【变更】将 currentBbox 重命名为 currentDrawingBox，使其含义更清晰
+  const [currentDrawingBox, setCurrentDrawingBox] = useState<[number, number, number, number] | null>(null);
+  // 【新增】一个新的状态，用于存储已绘制完成、等待提交的框
+  const [manualBboxes, setManualBboxes] = useState<([number, number, number, number])[]>([]);
   const [selectedPersonId, setSelectedPersonId] = useState<number | null>(null);
   const [idsToSave, setIdsToSave] = useState<Set<number>>(new Set());
   const [imageSize, setImageSize] = useState({ width: 0, height: 0 });
@@ -115,8 +118,8 @@ function App() {
           'cam1': {
             image_data: "data:image/svg+xml,%3Csvg width='640' height='480' xmlns='http://www.w3.org/2000/svg'%3E%3Crect width='100%25' height='100%25' fill='%23ccc'/%3E%3Ctext x='50%25' y='50%25' font-family='Arial' font-size='20' fill='white' text-anchor='middle' dy='.3em'%3EFailed to load frame. Click 'Next Frame'.%3C/text%3E%3C/svg%3E",
             bboxes: [
-              { id: 1, box: [50, 50, 150, 200], color: 'red' },
-              { id: 2, box: [200, 100, 350, 400], color: 'blue' },
+              { id: 1, box: [50, 50, 150, 200, 60, 60, 140, 190], color: 'red' },
+              { id: 2, box: [200, 100, 350, 400, 210, 110, 340, 390], color: 'blue' },
             ],
             frame_number: 1
           }
@@ -182,22 +185,6 @@ function App() {
         return;
       }
   
-      // const entries = await readDir(selectedPath);
-      // const videoFiles = entries.filter(
-      //   (file) => file.name && (file.name.endsWith('.mp4') || file.name.endsWith('.avi') || file.name.endsWith('.mov'))
-      // );
-  
-      // if (videoFiles.length === 0) {
-      //   alert('No video files (.mp4, .avi, .mov) found in the selected folder.');
-      //   return;
-      // }
-  
-      // const videoSources: Record<string, string> = {};
-      // for (const [index, file] of videoFiles.entries()) {
-      //     const camId = index + 1;
-      //     videoSources[camId] = await join(selectedPath, file.name);;
-      // }
-  
       // Reset state before loading new videos
       setFrameData(null);
       setSelectedCamId(null);
@@ -227,21 +214,28 @@ function App() {
     }
   }
 
+  // 【变更】修改手动提交逻辑
   async function submitManualBbox() {
-    if (!currentBbox || selectedPersonId === null || !frameData || !selectedCamId) {
-      alert("Please select a camera, a person ID, and draw a box first.");
+    // 检查是否已选择相机和ID，并且正好画了两个框
+    if (manualBboxes.length !== 2 || selectedPersonId === null || !frameData || !selectedCamId) {
+      alert("请先选择一个人物ID，并在图像上画两个框。");
       return;
     }
-    setIsPlaying(false); // Pause playback on manual submission
+    setIsPlaying(false); // 暂停播放
 
-    // Normalize the bounding box coordinates to [x_min, y_min, x_max, y_max]
-    const [x1, y1, x2, y2] = currentBbox;
-    const normalizedBbox = [
-      Math.round(Math.min(x1, x2)),
-      Math.round(Math.min(y1, y2)),
-      Math.round(Math.max(x1, x2)),
-      Math.round(Math.max(y1, y2)),
-    ];
+    // 将两个框的坐标都进行标准化 [x_min, y_min, x_max, y_max]
+    const normalizedBboxes = manualBboxes.map(box => {
+      const [x1, y1, x2, y2] = box;
+      return [
+        Math.round(Math.min(x1, x2)),
+        Math.round(Math.min(y1, y2)),
+        Math.round(Math.max(x1, x2)),
+        Math.round(Math.max(y1, y2)),
+      ];
+    });
+
+    // 将两个标准化的框合并成一个包含8个数字的数组
+    const finalBbox = [...normalizedBboxes[0], ...normalizedBboxes[1]];
 
     try {
       await invoke("invoke_python", {
@@ -250,21 +244,25 @@ function App() {
           frame_num: frameData.frame_number,
           cam_id: selectedCamId,
           person_id: selectedPersonId,
-          bbox: normalizedBbox,
+          bbox: finalBbox, // 发送合并后的框
         },
       });
-      alert(`Bbox for person ${selectedPersonId} on camera ${selectedCamId} submitted!`);
-      setCurrentBbox(null); // Clear the drawn box
+      alert(`人物 ${selectedPersonId} 在相机 ${selectedCamId} 上的边界框已提交!`);
+      
+      // 提交成功后清空手动绘制状态
+      setManualBboxes([]);
+      setCurrentDrawingBox(null);
+      
       setAllUniquePersonIds(prev => {
           const newSet = new Set(prev);
           newSet.add(selectedPersonId);
           return newSet;
       });
-      // Re-fetch the current frame to show the updated data
+      // 重新获取当前帧以显示更新后的数据
       await getSpecificFrame(frameData.frame_number);
     } catch (error) {
       console.error("Error submitting bbox:", error);
-      alert(`Error submitting data: ${error}`);
+      alert(`提交数据时出错: ${error}`);
     }
   }
 
@@ -308,27 +306,41 @@ function App() {
     };
   };
 
+  // 【变更】修改鼠标按下逻辑
   const handleMouseDown = (e: MouseEvent<HTMLCanvasElement>) => {
     if (!selectedPersonId) {
-        alert("Please select a Person ID from the sidebar before drawing.");
+        alert("在绘制前请从侧边栏选择一个人物ID。");
         return;
     }
-    setIsPlaying(false); // Pause on drawing
+    // 如果已经画了两个框，则重置，允许用户重新画
+    if (manualBboxes.length >= 2) {
+      setManualBboxes([]);
+    }
+    setIsPlaying(false); // 绘图时暂停
     const point = getCanvasPoint(e);
     if (!point) return;
     setIsDrawing(true);
-    setCurrentBbox([point.x, point.y, point.x, point.y]);
+    // 开始绘制一个新的框
+    setCurrentDrawingBox([point.x, point.y, point.x, point.y]);
   };
 
+  // 【变更】修改鼠标移动逻辑
   const handleMouseMove = (e: MouseEvent<HTMLCanvasElement>) => {
     if (!isDrawing) return;
     const point = getCanvasPoint(e);
-    if (!point || !currentBbox) return;
-    setCurrentBbox([currentBbox[0], currentBbox[1], point.x, point.y]);
+    if (!point || !currentDrawingBox) return;
+    // 更新当前正在绘制的框
+    setCurrentDrawingBox([currentDrawingBox[0], currentDrawingBox[1], point.x, point.y]);
   };
 
+  // 【变更】修改鼠标抬起逻辑
   const handleMouseUp = () => {
+    if (!isDrawing || !currentDrawingBox) return;
     setIsDrawing(false);
+    // 将绘制完成的框添加到 manualBboxes 数组中
+    setManualBboxes(prev => [...prev, currentDrawingBox]);
+    // 清空当前正在绘制的框
+    setCurrentDrawingBox(null);
   };
 
   // --- Effects ---
@@ -352,31 +364,52 @@ function App() {
     return () => window.clearInterval(intervalId);
   }, [isPlaying, pythonReady, fps, getNextFrame]);
 
-  // Effect to draw on the canvas whenever frameData or the current drawing changes
+  // 【变更】修改画布渲染逻辑，以显示所有类型的框
   useEffect(() => {
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext("2d");
     if (!ctx || !canvas) return;
 
-    // Clear canvas
+    // 清空画布
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Draw existing bboxes from the backend for the selected camera
+    // 1. 绘制来自后端的已有边界框
     currentCamData?.bboxes.forEach(({ id, box, color }) => {
-      const [x1, y1, x2, y2] = box;
-      const width = x2 - x1;
-      const height = y2 - y1;
+      const [x1_a, y1_a, x2_a, y2_a, x1_b, y1_b, x2_b, y2_b] = box;
+      
       ctx.strokeStyle = color;
       ctx.lineWidth = 2;
-      ctx.strokeRect(x1, y1, width, height);
+
+      // 绘制第一个框
+      const width_a = x2_a - x1_a;
+      const height_a = y2_a - y1_a;
+      ctx.strokeRect(x1_a, y1_a, width_a, height_a);
+
+      // 绘制第二个框
+      const width_b = x2_b - x1_b;
+      const height_b = y2_b - y1_b;
+      ctx.strokeRect(x1_b, y1_b, width_b, height_b);
+      
       ctx.fillStyle = color;
       ctx.font = "14px Arial";
-      ctx.fillText(`ID: ${id}`, x1, y1 > 15 ? y1 - 5 : y1 + 15);
+      ctx.fillText(`ID: ${id}`, x1_a, y1_a > 15 ? y1_a - 5 : y1_a + 15);
     });
 
-    // Draw the new bbox the user is currently drawing
-    if (currentBbox) {
-      const [x1, y1, x2, y2] = currentBbox;
+    // 2. 绘制用户已完成、等待提交的框 (用黄色实线)
+    manualBboxes.forEach(box => {
+      const [x1, y1, x2, y2] = box;
+      const startX = Math.min(x1, x2);
+      const startY = Math.min(y1, y2);
+      const width = Math.abs(x1 - x2);
+      const height = Math.abs(y1 - y2);
+      ctx.strokeStyle = "yellow";
+      ctx.lineWidth = 3;
+      ctx.strokeRect(startX, startY, width, height);
+    });
+
+    // 3. 绘制用户当前正在画的框 (用绿色虚线)
+    if (currentDrawingBox) {
+      const [x1, y1, x2, y2] = currentDrawingBox;
       const startX = Math.min(x1, x2);
       const startY = Math.min(y1, y2);
       const width = Math.abs(x1 - x2);
@@ -387,7 +420,7 @@ function App() {
       ctx.strokeRect(startX, startY, width, height);
       ctx.setLineDash([]);
     }
-  }, [currentCamData, currentBbox]);
+  }, [currentCamData, manualBboxes, currentDrawingBox]); // 添加依赖项
 
   return (
     <div className="annotation-tool">
@@ -470,11 +503,16 @@ function App() {
                 id="person-id-input"
                 type="number"
                 placeholder="Enter ID"
-                onChange={(e) => setSelectedPersonId(parseInt(e.target.value, 10))}
+                onChange={(e) => {
+                  setSelectedPersonId(parseInt(e.target.value, 10));
+                  setManualBboxes([]); // 切换ID时清空已绘制的框
+                }}
                 value={selectedPersonId ?? ""}
-                
             />
-            <button onClick={submitManualBbox} disabled={!currentBbox}>
+            {/* 【新增】显示当前绘制进度 */}
+            <p>已绘制: {manualBboxes.length} / 2 个框</p>
+            {/* 【变更】按钮的 disabled 状态取决于是否画了两个框 */}
+            <button onClick={submitManualBbox} disabled={manualBboxes.length !== 2}>
                 Submit Bbox
             </button>
         </div>
@@ -487,7 +525,10 @@ function App() {
             <li
               key={id}
               className={selectedPersonId == id ? 'selected' : ''}
-              onClick={()=>setSelectedPersonId(id)}
+              onClick={()=>{
+                setSelectedPersonId(id);
+                setManualBboxes([]); // 点击列表选择ID时也清空已绘制的框
+              }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <span style={{width: "100%"}}>
