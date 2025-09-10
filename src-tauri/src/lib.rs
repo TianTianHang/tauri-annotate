@@ -27,11 +27,16 @@ pub struct PythonProcess {
 }
 
 // This is the command that the frontend will call.
+// ===================================================================================
+// START OF CHANGES
+// By adding `async`, Tauri will run this command on a background thread,
+// preventing the UI from freezing while waiting for the Python script's response.
+// ===================================================================================
 #[tauri::command]
-fn invoke_python(
+async fn invoke_python(
     command: String,
     params: serde_json::Value,
-    state: State<PythonProcess>,
+    state: State<'_, PythonProcess>, // `State` in an async function requires a lifetime
     app: AppHandle,
 ) -> Result<String, String> {
     let mut stdin_guard = state.stdin.lock().unwrap();
@@ -61,6 +66,9 @@ fn invoke_python(
                 return Err("Timeout: Did not receive response from Python in time.".into());
             }
             let mut response_line = String::new();
+            
+            // This is a blocking call, but because the whole function is `async`,
+            // it will run on a worker thread and not block the UI.
             let bytes_read = reader
                 .read_line(&mut response_line)
                 .map_err(|e| e.to_string())?;
@@ -84,7 +92,9 @@ fn invoke_python(
         Err("Python process is not running.".into())
     }
 }
-
+// ===================================================================================
+// END OF CHANGES
+// ===================================================================================
 
 
 fn get_config_path(app: &AppHandle) -> Result<PathBuf, String> {
