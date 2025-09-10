@@ -142,6 +142,8 @@ async fn restart_python_process(
     }
 
     let mut new_child = Command::new(&interpreter)
+        .env_remove("PYTHONHOME")
+        .env_remove("PYTHONPATH")
         .arg("-u")
         .arg(&script_path_str)
         .stdin(Stdio::piped())
