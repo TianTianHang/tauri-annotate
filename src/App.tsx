@@ -55,6 +55,7 @@ function App() {
   const [maxFrame, setMaxFrame] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [fps, setFps] = useState(10);
+  const [swapState, setSwapState] = useState<{ active: boolean; ids: number[] }>({ active: false, ids: [] });
 
   // --- Refs for DOM elements ---
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -318,6 +319,54 @@ function App() {
     }
   }
 
+  // --- ID Swap Logic ---
+
+  const handleInitiateSwap = () => {
+    setSwapState(prev => {
+      const isActive = !prev.active;
+      if (isActive) {
+        alert("ID Merge mode activated. Please click the CORRECT ID first, then click the WRONG ID to merge into the correct one.");
+      }
+      return { active: isActive, ids: [] };
+    });
+    setIsPlaying(false); // Pause playback when starting a manual operation
+  };
+
+  const handleSelectIdForSwap = (id: number) => {
+    setSwapState(prev => {
+      if (prev.ids.includes(id)) {
+        return { ...prev, ids: prev.ids.filter(i => i !== id) };
+      }
+      if (prev.ids.length < 2) {
+        const newIds = [...prev.ids, id];
+        if (newIds.length === 2) {
+          // Use a timeout to allow UI to update before showing confirm dialog
+          setTimeout(() => triggerSwapConfirmation(newIds), 0);
+        }
+        return { ...prev, ids: newIds };
+      }
+      return prev;
+    });
+  };
+
+  const triggerSwapConfirmation = async (ids: number[]) => {
+    if (!frameData) return;
+    const [id1, id2] = ids;
+    const confirmed = window.confirm(`Are you sure you want to merge all future occurrences of ID ${id2} into ID ${id1} from frame ${frameData.frame_number} onwards? This action cannot be undone.\n\n(Correct ID: ${id1}, Wrong ID: ${id2})`);
+
+    if (confirmed) {
+      try {
+        await invoke("invoke_python", { command: "swap_ids", params: { start_frame: frameData.frame_number, id1, id2 } });
+        alert("IDs swapped successfully!");
+        await getSpecificFrame(frameData.frame_number); // Refresh frame to show changes
+      } catch (error) {
+        console.error("Error swapping IDs:", error);
+        alert(`Failed to swap IDs: ${error}`);
+      }
+    }
+    setSwapState({ active: false, ids: [] }); // Reset state regardless of confirmation
+  };
+
   // --- Canvas Drawing Logic ---
 
   const getCanvasPoint = (e: MouseEvent<HTMLCanvasElement>): Point | null => {
@@ -534,12 +583,19 @@ function App() {
                 onChange={(e) => {
                   setSelectedPersonId(parseInt(e.target.value, 10));
                   setManualBboxes([]); // 切换ID时清空已绘制的框
+                  if (swapState.active) setSwapState({ active: false, ids: [] }); // Exit swap mode
                 }}
                 value={selectedPersonId ?? ""}
             />
             {/* 【新增】显示当前绘制进度 */}
             <p>已绘制: {manualBboxes.length} / 2 个框</p>
             {/* 【变更】按钮的 disabled 状态取决于是否画了两个框 */}
+            <button onClick={handleInitiateSwap} style={{ marginBottom: '10px' }}>
+              {swapState.active ? `Cancel Merge (${swapState.ids.length}/2)` : 'Merge IDs'}
+            </button>
+            {swapState.active && (
+              <p style={{ color: 'orange' }}>Click correct ID, then wrong ID.</p>
+            )}
             <button onClick={submitManualBbox} disabled={manualBboxes.length !== 2}>
                 Submit Bbox
             </button>
@@ -551,11 +607,21 @@ function App() {
         <ul className="person-list">
           {currentCamData?.bboxes.map(({ id, color }) => (
             <li
-              key={id}
-              className={selectedPersonId == id ? 'selected' : ''}
-              onClick={()=>{
-                setSelectedPersonId(id);
-                setManualBboxes([]); // 点击列表选择ID时也清空已绘制的框
+              key={`detection-${id}`}
+              className={
+                (swapState.active && swapState.ids.includes(id))
+                  ? 'swapping'
+                  : (!swapState.active && selectedPersonId === id)
+                  ? 'selected'
+                  : ''
+              }
+              onClick={() => {
+                if (swapState.active) {
+                  handleSelectIdForSwap(id);
+                } else {
+                  setSelectedPersonId(id);
+                  setManualBboxes([]);
+                }
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
