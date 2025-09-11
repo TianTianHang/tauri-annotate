@@ -1,4 +1,4 @@
-import { CamData } from "../App";
+import { CamData } from "../types";
 import { MouseEvent, RefObject} from "react";
 
 interface VideoDisplayProps {
@@ -9,7 +9,7 @@ interface VideoDisplayProps {
     setImageSize: ({ width, height }: { width: number; height: number }) => void;
     handleMouseDown: (e: MouseEvent<HTMLCanvasElement>) => void;
     handleMouseMove: (e: MouseEvent<HTMLCanvasElement>) => void;
-    handleMouseUp: () => void;
+    handleMouseUp: (e: MouseEvent<HTMLCanvasElement>) => void;
 }
 
 function VideoDisplay({ frameData, imageRef, canvasRef, imageSize, setImageSize, handleMouseDown, handleMouseMove, handleMouseUp }: VideoDisplayProps) {

@@ -3,35 +3,10 @@ import { invoke } from "@tauri-apps/api/tauri";
 import { open, save } from "@tauri-apps/api/dialog";
 import "./App.css";
 import VideoDisplay from "./components/VideoDisplay";
-import Settings from "./components/Setting";
+import Settings from "./components/Settings";
+import { FrameData, Point } from "./types";
 
 
-// --- Type Definitions ---
-// These should match the data structures sent from your Python backend
-
-export interface Bbox {
-  id: number;
-  box: [number, number, number, number, number, number, number, number]; // [x1_a, y1_a, x2_a, y2_a, x1_b, y1_b, x2_b, y2_b]
-  color: string;
-}
-
-// New interface for data from a single camera
-export interface CamData {
-  bboxes: Bbox[];
-  image_data: string; // Base64 encoded image string
-  frame_number: number;
-}
-
-// Updated interface for the whole frame data from backend
-export interface FrameData {
-  frame_number: number;
-  cams: Record<string, CamData>;
-}
-
-export interface Point {
-  x: number;
-  y: number;
-}
 
 
 // --- Main App Component ---
@@ -48,6 +23,7 @@ function App() {
   const [manualBboxes, setManualBboxes] = useState<([number, number, number, number])[]>([]);
   const [selectedPersonId, setSelectedPersonId] = useState<number | null>(null);
   const [idsToSave, setIdsToSave] = useState<Set<number>>(new Set());
+  const [lostids, setLostids] = useState<Set<number>>(new Set());
   const [imageSize, setImageSize] = useState({ width: 0, height: 0 });
   const [allUniquePersonIds, setAllUniquePersonIds] = useState<Set<number>>(new Set());
   const [startFrame, setStartFrame] = useState(1);
@@ -56,17 +32,21 @@ function App() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [fps, setFps] = useState(10);
   const [swapState, setSwapState] = useState<{ active: boolean; ids: number[] }>({ active: false, ids: [] });
+  // [NEW] Added state variable to track the application's current phase.
+  const [appPhase, setAppPhase] = useState<'initial' | 'initial_run' | 'user_selection' | 'continuous_tracking' | 'lost_track'>('initial');
+
 
   // --- Refs for DOM elements ---
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
-
+  const frameNumberRef = useRef(0)
   // --- Derived State ---
   const currentCamData = frameData && selectedCamId ? frameData.cams[selectedCamId] : null;
   const displayFrameData = currentCamData ? { ...currentCamData, frame_number: frameData!.frame_number } : null;
 
   // --- Backend Interaction ---
 
+  // [MODIFIED] Removed the automatic phase transition.
   const handleToggleIdForSave = (id: number) => {
     setIdsToSave(prev => {
       const newSet = new Set(prev);
@@ -79,6 +59,7 @@ function App() {
     });
   };
 
+  // [MODIFIED] getNextFrame function
   const getNextFrame = useCallback(async () => {
     if (!pythonReady) {
       // Maybe show a message to the user to configure the backend first
@@ -86,21 +67,23 @@ function App() {
       return;
     }
     try {
-      // This is a placeholder. The actual command and parameters will depend on your Rust backend.
+      // [FIX] Calculate target frame using the ref to get the most up-to-date value.
+      const targetFrame = frameNumberRef.current + 1;
       const responseStr = await invoke<string>("invoke_python", {
         command: "process_frame",
-        params: {},
+        params: { target_frame: targetFrame },
       });
       const response: FrameData = JSON.parse(responseStr);
+      frameNumberRef.current = response.frame_number;
       setFrameData(response);
-
+      console.log(frameData?.frame_number)
       // Update unique person IDs from all cameras
       setAllUniquePersonIds(prev => {
-          const newSet = new Set(prev);
-          Object.values(response.cams).forEach(cam => {
-            cam.bboxes.forEach(bbox => newSet.add(bbox.id));
-          });
-          return newSet;
+        const newSet = new Set(prev);
+        Object.values(response.cams).forEach(cam => {
+          cam.bboxes.forEach(bbox => newSet.add(bbox.id));
+        });
+        return newSet;
       });
 
       // Set selected camera if not set
@@ -109,6 +92,20 @@ function App() {
       }
 
       setMaxFrame(prev => Math.max(prev, response.frame_number));
+
+      // Check if any of the selected IDs are lost
+      if (appPhase === 'continuous_tracking' && idsToSave.size > 0) {
+        const currentFrameIds = new Set(Object.values(response.cams).flatMap(cam => cam.bboxes.map(bbox => bbox.id)));
+        const lostIds1 = Array.from(idsToSave).filter(id => !currentFrameIds.has(id));
+        setLostids(new Set(lostIds1))
+        if (lostIds1.length > 0) {
+          console.warn(`Lost track of person ID(s): ${lostIds1.join(', ')}`);
+          setIsPlaying(false); // Pause playback
+          setAppPhase('lost_track');
+          alert(`Lost person ID ${lostIds1.join(', ')}} at frame ${response.frame_number}. Please correct.`);
+        }
+      }
+
     } catch (error) {
       console.error("Error fetching next frame:", error);
       setIsPlaying(false); // Stop playing on error
@@ -128,7 +125,7 @@ function App() {
       }));
       if (!selectedCamId) setSelectedCamId('cam1');
     }
-  }, [pythonReady, selectedCamId]);
+  }, [pythonReady, selectedCamId, frameData, idsToSave, appPhase]);
 
   const getSpecificFrame = useCallback(async (frameNumber: number) => {
     if (!pythonReady) {
@@ -141,15 +138,16 @@ function App() {
         params: { target_frame: frameNumber },
       });
       const response: FrameData = JSON.parse(responseStr);
+      frameNumberRef.current = response.frame_number;
       setFrameData(response);
 
       // Update unique person IDs from all cameras
       setAllUniquePersonIds(prev => {
-          const newSet = new Set(prev);
-          Object.values(response.cams).forEach(cam => {
-            cam.bboxes.forEach(bbox => newSet.add(bbox.id));
-          });
-          return newSet;
+        const newSet = new Set(prev);
+        Object.values(response.cams).forEach(cam => {
+          cam.bboxes.forEach(bbox => newSet.add(bbox.id));
+        });
+        return newSet;
       });
 
       // Ensure a camera is selected
@@ -173,6 +171,25 @@ function App() {
     await getSpecificFrame(frameData.frame_number - 1);
   }
 
+  // [NEW] initialAutoRun function
+  const initialAutoRun = async (n: number) => {
+    for (let i = 0; i < n; i++) {
+      await getNextFrame();
+    }
+    setIsPlaying(false);
+    setAppPhase('user_selection');
+  };
+  // [NEW] A new handler to manually begin the continuous tracking phase.
+  const handleStartTracking = () => {
+    if (idsToSave.size === 0) {
+      alert("Please select at least one person from the 'Persons to Save' list before starting.");
+      return;
+    }
+    setAppPhase('continuous_tracking');
+    setIsPlaying(true);
+  };
+
+  // [MODIFIED] handleLoadVideos function
   async function handleLoadVideos() {
     try {
       const selectedPath = await open({
@@ -180,12 +197,12 @@ function App() {
         multiple: false,
         title: 'Select Video Folder',
       });
-  
+
       if (typeof selectedPath !== 'string') {
         console.log('No folder selected.');
         return;
       }
-  
+
       // Reset state before loading new videos
       setFrameData(null);
       setSelectedCamId(null);
@@ -194,18 +211,20 @@ function App() {
       setStartFrame(1);
       setEndFrame(1);
       setIsPlaying(false);
-  
+      frameNumberRef.current = 0;
+
       const responseStr = await invoke<string>('invoke_python', {
         command: 'load_videos',
         params: { video_path: selectedPath },
       });
       const response = JSON.parse(responseStr);
-  
+
       if (response.status === 'success') {
         alert(`Successfully loaded ${response.video_info} video(s).`);
-        // After loading, automatically fetch the first frame
-        await getSpecificFrame(1);
-        setPythonReady(true); // Mark as ready since videos are loaded
+        setPythonReady(true);
+        setAppPhase('initial_run');
+        // Start the initial automatic run
+        await initialAutoRun(20);
       } else {
         alert(`Error loading videos: ${response.message}`);
       }
@@ -215,16 +234,14 @@ function App() {
     }
   }
 
-  // 【变更】修改手动提交逻辑
+  // [MODIFIED] submitManualBbox function
   async function submitManualBbox() {
-    // 检查是否已选择相机和ID，并且正好画了两个框
     if (manualBboxes.length !== 2 || selectedPersonId === null || !frameData || !selectedCamId) {
       alert("请先选择一个人物ID，并在图像上画两个框。");
       return;
     }
-    setIsPlaying(false); // 暂停播放
+    setIsPlaying(false);
 
-    // 将两个框的坐标都进行标准化 [x_min, y_min, x_max, y_max]
     const normalizedBboxes = manualBboxes.map(box => {
       const [x1, y1, x2, y2] = box;
       return [
@@ -235,7 +252,6 @@ function App() {
       ];
     });
 
-    // 将两个标准化的框合并成一个包含8个数字的数组
     const finalBbox = [...normalizedBboxes[0], ...normalizedBboxes[1]];
 
     try {
@@ -245,21 +261,29 @@ function App() {
           frame_num: frameData.frame_number,
           cam_id: selectedCamId,
           person_id: selectedPersonId,
-          bbox: finalBbox, // 发送合并后的框
+          bbox: finalBbox,
         },
       });
       alert(`人物 ${selectedPersonId} 在相机 ${selectedCamId} 上的边界框已提交!`);
-      
-      // 提交成功后清空手动绘制状态
-      setManualBboxes([]);
+      const newLostids = new Set(lostids);
+      newLostids.delete(selectedPersonId)
+
+      setLostids(newLostids)
+      setManualBboxes([]);  
       setCurrentDrawingBox(null);
       
+      // After correction, resume continuous tracking
+      if (appPhase === 'lost_track' && newLostids.size === 0) {
+        setAppPhase('continuous_tracking');
+        setIsPlaying(true);
+      }
+
       setAllUniquePersonIds(prev => {
-          const newSet = new Set(prev);
-          newSet.add(selectedPersonId);
-          return newSet;
+        const newSet = new Set(prev);
+        newSet.add(selectedPersonId);
+        return newSet;
       });
-      // 重新获取当前帧以显示更新后的数据
+
       await getSpecificFrame(frameData.frame_number);
     } catch (error) {
       console.error("Error submitting bbox:", error);
@@ -286,7 +310,7 @@ function App() {
       });
 
       if (!filePath) {
-        return; // User cancelled the save dialog
+        return;
       }
 
       const response = await invoke<any>("invoke_python", {
@@ -310,7 +334,7 @@ function App() {
       alert("Please select one or more persons to analyze from the 'Persons to Save' list.");
       return;
     }
-    setIsPlaying(false); // Stop playback during analysis
+    setIsPlaying(false);
     try {
       alert("Starting final analysis... This may take a moment.");
       const responseStr = await invoke<string>("invoke_python", {
@@ -338,30 +362,28 @@ function App() {
     setSwapState(prev => {
       const isActive = !prev.active;
       if (isActive) {
-        alert("ID Merge mode activated. Please click the CORRECT ID first, then click the WRONG ID to merge into the correct one.");
+        alert("ID Merge mode activated. Please input the IDs below.");
       }
       return { active: isActive, ids: [] };
     });
-    setIsPlaying(false); // Pause playback when starting a manual operation
+    setIsPlaying(false);
   };
 
-  const handleSelectIdForSwap = (id: number) => {
+  const handleIdInputChange = (index: number, value: string) => {
     setSwapState(prev => {
-      if (prev.ids.includes(id)) {
-        return { ...prev, ids: prev.ids.filter(i => i !== id) };
-      }
-      if (prev.ids.length < 2) {
-        const newIds = [...prev.ids, id];
-        if (newIds.length === 2) {
-          // Use a timeout to allow UI to update before showing confirm dialog
-          setTimeout(() => triggerSwapConfirmation(newIds), 0);
-        }
-        return { ...prev, ids: newIds };
-      }
-      return prev;
+      const newIds = [...prev.ids];
+      newIds[index] = parseInt(value, 10) || 0; // Use 0 for invalid input
+      return { ...prev, ids: newIds.filter(id => id > 0) };
     });
   };
-
+  const handleConfirmSwap = async () => {
+    if (swapState.ids.length !== 2) {
+      alert("Please enter both a correct and a wrong ID.");
+      return;
+    }
+    await triggerSwapConfirmation(swapState.ids);
+  };
+  // [MODIFIED] triggerSwapConfirmation function
   const triggerSwapConfirmation = async (ids: number[]) => {
     if (!frameData) return;
     const [id1, id2] = ids;
@@ -371,13 +393,13 @@ function App() {
       try {
         await invoke("invoke_python", { command: "swap_ids", params: { start_frame: frameData.frame_number, id1, id2 } });
         alert("IDs swapped successfully!");
-        await getSpecificFrame(frameData.frame_number); // Refresh frame to show changes
+        await getSpecificFrame(frameData.frame_number);
       } catch (error) {
         console.error("Error swapping IDs:", error);
         alert(`Failed to swap IDs: ${error}`);
       }
     }
-    setSwapState({ active: false, ids: [] }); // Reset state regardless of confirmation
+    setSwapState({ active: false, ids: [] }); // Reset state
   };
 
   // --- Canvas Drawing Logic ---
@@ -386,7 +408,6 @@ function App() {
     const canvas = canvasRef.current;
     if (!canvas) return null;
     const rect = canvas.getBoundingClientRect();
-    // Scale mouse coordinates from display size to native image size
     const scaleX = canvas.width / rect.width;
     const scaleY = canvas.height / rect.height;
     return {
@@ -395,46 +416,37 @@ function App() {
     };
   };
 
-  // 【变更】修改鼠标按下逻辑
   const handleMouseDown = (e: MouseEvent<HTMLCanvasElement>) => {
     if (!selectedPersonId) {
-        alert("在绘制前请从侧边栏选择一个人物ID。");
-        return;
+      alert("在绘制前请从侧边栏选择一个人物ID。");
+      return;
     }
-    // 如果已经画了两个框，则重置，允许用户重新画
     if (manualBboxes.length >= 2) {
       setManualBboxes([]);
     }
-    setIsPlaying(false); // 绘图时暂停
+    setIsPlaying(false);
     const point = getCanvasPoint(e);
     if (!point) return;
     setIsDrawing(true);
-    // 开始绘制一个新的框
     setCurrentDrawingBox([point.x, point.y, point.x, point.y]);
   };
 
-  // 【变更】修改鼠标移动逻辑
   const handleMouseMove = (e: MouseEvent<HTMLCanvasElement>) => {
     if (!isDrawing) return;
     const point = getCanvasPoint(e);
     if (!point || !currentDrawingBox) return;
-    // 更新当前正在绘制的框
     setCurrentDrawingBox([currentDrawingBox[0], currentDrawingBox[1], point.x, point.y]);
   };
 
-  // 【变更】修改鼠标抬起逻辑
   const handleMouseUp = () => {
     if (!isDrawing || !currentDrawingBox) return;
     setIsDrawing(false);
-    // 将绘制完成的框添加到 manualBboxes 数组中
     setManualBboxes(prev => [...prev, currentDrawingBox]);
-    // 清空当前正在绘制的框
     setCurrentDrawingBox(null);
   };
 
   // --- Effects ---
 
-  // Effect for auto-playing frames
   useEffect(() => {
     if (!isPlaying || !pythonReady) {
       return;
@@ -443,7 +455,7 @@ function App() {
     let isFetching = false;
     const intervalId = window.setInterval(async () => {
       if (isFetching) {
-        return; // Skip if previous frame is still being fetched
+        return;
       }
       isFetching = true;
       await getNextFrame();
@@ -453,38 +465,32 @@ function App() {
     return () => window.clearInterval(intervalId);
   }, [isPlaying, pythonReady, fps, getNextFrame]);
 
-  // 【变更】修改画布渲染逻辑，以显示所有类型的框
   useEffect(() => {
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext("2d");
     if (!ctx || !canvas) return;
 
-    // 清空画布
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // 1. 绘制来自后端的已有边界框
     currentCamData?.bboxes.forEach(({ id, box, color }) => {
       const [x1_a, y1_a, x2_a, y2_a, x1_b, y1_b, x2_b, y2_b] = box;
-      
+
       ctx.strokeStyle = color;
       ctx.lineWidth = 2;
 
-      // 绘制第一个框
       const width_a = x2_a - x1_a;
       const height_a = y2_a - y1_a;
       ctx.strokeRect(x1_a, y1_a, width_a, height_a);
 
-      // 绘制第二个框
       const width_b = x2_b - x1_b;
       const height_b = y2_b - y1_b;
       ctx.strokeRect(x1_b, y1_b, width_b, height_b);
-      
+
       ctx.fillStyle = color;
       ctx.font = "14px Arial";
       ctx.fillText(`ID: ${id}`, x1_a, y1_a > 15 ? y1_a - 5 : y1_a + 15);
     });
 
-    // 2. 绘制用户已完成、等待提交的框 (用黄色实线)
     manualBboxes.forEach(box => {
       const [x1, y1, x2, y2] = box;
       const startX = Math.min(x1, x2);
@@ -496,7 +502,6 @@ function App() {
       ctx.strokeRect(startX, startY, width, height);
     });
 
-    // 3. 绘制用户当前正在画的框 (用绿色虚线)
     if (currentDrawingBox) {
       const [x1, y1, x2, y2] = currentDrawingBox;
       const startX = Math.min(x1, x2);
@@ -509,7 +514,7 @@ function App() {
       ctx.strokeRect(startX, startY, width, height);
       ctx.setLineDash([]);
     }
-  }, [currentCamData, manualBboxes, currentDrawingBox]); // 添加依赖项
+  }, [currentCamData, manualBboxes, currentDrawingBox]);
 
   return (
     <div className="annotation-tool">
@@ -518,7 +523,6 @@ function App() {
           <Settings
             onApply={() => {
               setPythonReady(true);
-              // now we can get the first frame
               getNextFrame();
             }}
           />
@@ -529,9 +533,16 @@ function App() {
         <h2>Controls</h2>
         <div className="control-panel">
           <button onClick={handleLoadVideos}>Load Videos</button>
+          {/* [NEW] Add a button to manually start the continuous tracking phase */}
+          {appPhase === 'user_selection' && (
+            <button onClick={handleStartTracking} disabled={idsToSave.size === 0} title={idsToSave.size === 0 ? "Please select at least one ID to track" : ""}>
+              Start Tracking
+            </button>
+          )}
           <button onClick={getNextFrame}>Next Frame</button>
           <button onClick={getPrevFrame} disabled={!frameData || frameData.frame_number <= 1}>Prev Frame</button>
-          <button onClick={() => setIsPlaying(p => !p)} disabled={!pythonReady}>
+          {/* [MODIFIED] "Auto Play" button disabled logic */}
+          <button onClick={() => setIsPlaying(p => !p)} disabled={appPhase !== 'continuous_tracking'}>
             {isPlaying ? "Pause" : "Auto Play"}
           </button>
           <button onClick={saveSelectedData}>Save Selected</button>
@@ -555,31 +566,31 @@ function App() {
 
         <h2>Save Range</h2>
         <div className="save-range-panel">
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
-                <label htmlFor="start-frame-input" style={{flexShrink: 0, minWidth: '80px'}}>Start Frame:</label>
-                <input
-                    id="start-frame-input"
-                    type="number"
-                    value={startFrame}
-                    onChange={(e) => setStartFrame(Math.max(1, parseInt(e.target.value, 10) || 1))}
-                    min="1"
-                    style={{width: '160px'}}
-                />
-                
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <label htmlFor="end-frame-input" style={{flexShrink: 0, minWidth: '80px'}}>End Frame:</label>
-                <input
-                    id="end-frame-input"
-                    type="number"
-                    value={endFrame}
-                    onChange={(e) => setEndFrame(Math.max(1, parseInt(e.target.value, 10) || 1))}
-                    min="1"
-                    max={maxFrame > 0 ? maxFrame : undefined}
-                    style={{width: '160px'}}
-                />
-               
-            </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
+            <label htmlFor="start-frame-input" style={{ flexShrink: 0, minWidth: '80px' }}>Start Frame:</label>
+            <input
+              id="start-frame-input"
+              type="number"
+              value={startFrame}
+              onChange={(e) => setStartFrame(Math.max(1, parseInt(e.target.value, 10) || 1))}
+              min="1"
+              style={{ width: '160px' }}
+            />
+
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <label htmlFor="end-frame-input" style={{ flexShrink: 0, minWidth: '80px' }}>End Frame:</label>
+            <input
+              id="end-frame-input"
+              type="number"
+              value={endFrame}
+              onChange={(e) => setEndFrame(Math.max(1, parseInt(e.target.value, 10) || 1))}
+              min="1"
+              max={maxFrame > 0 ? maxFrame : undefined}
+              style={{ width: '160px' }}
+            />
+
+          </div>
         </div>
 
         <hr />
@@ -588,30 +599,53 @@ function App() {
 
         <h2>Manual Correction</h2>
         <div className="manual-annotation">
-            <label htmlFor="person-id-input">Person ID to correct:</label>
-            <input
-                id="person-id-input"
-                type="number"
-                placeholder="Enter ID"
-                onChange={(e) => {
-                  setSelectedPersonId(parseInt(e.target.value, 10));
-                  setManualBboxes([]); // 切换ID时清空已绘制的框
-                  if (swapState.active) setSwapState({ active: false, ids: [] }); // Exit swap mode
-                }}
-                value={selectedPersonId ?? ""}
-            />
-            {/* 【新增】显示当前绘制进度 */}
-            <p>已绘制: {manualBboxes.length} / 2 个框</p>
-            {/* 【变更】按钮的 disabled 状态取决于是否画了两个框 */}
-            <button onClick={handleInitiateSwap} style={{ marginBottom: '10px' }}>
-              {swapState.active ? `Cancel Merge (${swapState.ids.length}/2)` : 'Merge IDs'}
-            </button>
-            {swapState.active && (
-              <p style={{ color: 'orange' }}>Click correct ID, then wrong ID.</p>
-            )}
-            <button onClick={submitManualBbox} disabled={manualBboxes.length !== 2}>
-                Submit Bbox
-            </button>
+          <label htmlFor="person-id-input">Person ID to correct:</label>
+          <input
+            id="person-id-input"
+            type="number"
+            placeholder="Enter ID"
+            onChange={(e) => {
+              setSelectedPersonId(parseInt(e.target.value, 10));
+              setManualBboxes([]);
+              if (swapState.active) setSwapState({ active: false, ids: [] });
+            }}
+            value={selectedPersonId ?? ""}
+          />
+          <p>已绘制: {manualBboxes.length} / 2 个框</p>
+          <button onClick={handleInitiateSwap} style={{ marginBottom: '10px' }}>
+            {swapState.active ? `Cancel Merge (${swapState.ids.length}/2)` : 'Merge IDs'}
+          </button>
+          {swapState.active && (
+            <>
+              <div>
+                <label htmlFor="correct-id-input">Correct ID:</label>
+                <input
+                  id="correct-id-input"
+                  type="number"
+                  placeholder="Correct ID"
+                  value={swapState.ids[0] ?? ''}
+                  onChange={(e) => handleIdInputChange(0, e.target.value)}
+                />
+              </div>
+              <div>
+                <label htmlFor="wrong-id-input">Wrong ID:</label>
+                <input
+                  id="wrong-id-input"
+                  type="number"
+                  placeholder="Wrong ID"
+                  value={swapState.ids[1] ?? ''}
+                  onChange={(e) => handleIdInputChange(1, e.target.value)}
+                />
+              </div>
+              <button onClick={handleConfirmSwap} disabled={swapState.ids.length !== 2}>
+                Confirm Merge
+              </button>
+              <p style={{ color: 'orange' }}>Enter the correct and wrong IDs, then click Confirm.</p>
+            </>
+          )}
+          <button onClick={submitManualBbox} disabled={manualBboxes.length !== 2}>
+            Submit Bbox
+          </button>
         </div>
         <hr />
 
@@ -621,24 +655,9 @@ function App() {
           {currentCamData?.bboxes.map(({ id, color }) => (
             <li
               key={`detection-${id}`}
-              className={
-                (swapState.active && swapState.ids.includes(id))
-                  ? 'swapping'
-                  : (!swapState.active && selectedPersonId === id)
-                  ? 'selected'
-                  : ''
-              }
-              onClick={() => {
-                if (swapState.active) {
-                  handleSelectIdForSwap(id);
-                } else {
-                  setSelectedPersonId(id);
-                  setManualBboxes([]);
-                }
-              }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <span style={{width: "100%"}}>
+                <span style={{ width: "100%" }}>
                   Person ID: {id}
                 </span>
                 <div style={{ width: '20px', height: '20px', backgroundColor: color, border: '1px solid #ccc' }}></div>
@@ -658,9 +677,7 @@ function App() {
               onClick={() => handleToggleIdForSave(id)}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <span style={{width: "100%"}}>Person ID: {id}</span>
-                
-                
+                <span style={{ width: "100%" }}>Person ID: {id}</span>
               </div>
             </li>
           ))}
@@ -670,9 +687,14 @@ function App() {
 
       <main className="main-content">
         <h1>Frame Annotation Tool</h1>
+        {/* [NEW] Added status messages display */}
+        <div className="status-messages">
+          {appPhase === 'initial_run' && <p>Initial analysis in progress... Please wait.</p>}
+          {appPhase === 'user_selection' && <p>Analysis complete. Please select the persons you want to track from the list on the right.</p>}
+          {appPhase === 'lost_track' && <p style={{ color: 'red' }}>A tracked person has been lost! Please perform a manual correction below.</p>}
+        </div>
         <div className="frame-and-camera-controls">
           <p>Frame: {frameData?.frame_number ?? 'Loading...'}</p>
-          {/* Camera Selection UI */}
           <div className="camera-selection">
             <div className="camera-buttons">
               {frameData && Object.keys(frameData.cams).map(camId => (
