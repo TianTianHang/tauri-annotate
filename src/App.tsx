@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, MouseEvent, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/tauri";
-import { open } from "@tauri-apps/api/dialog";
+import { open, save } from "@tauri-apps/api/dialog";
 import "./App.css";
 import VideoDisplay from "./components/VideoDisplay";
 import Settings from "./components/Setting";
@@ -202,7 +202,7 @@ function App() {
       const response = JSON.parse(responseStr);
   
       if (response.status === 'success') {
-        alert(`Successfully loaded ${Object.keys(response.video_info).length} video(s).`);
+        alert(`Successfully loaded ${response.video_info} video(s).`);
         // After loading, automatically fetch the first frame
         await getSpecificFrame(1);
         setPythonReady(true); // Mark as ready since videos are loaded
@@ -277,12 +277,25 @@ function App() {
       return;
     }
     try {
+      const filePath = await save({
+        title: "Save Selected Person Data",
+        filters: [{
+          name: 'JSON',
+          extensions: ['json']
+        }]
+      });
+
+      if (!filePath) {
+        return; // User cancelled the save dialog
+      }
+
       const response = await invoke<any>("invoke_python", {
         command: "save_selected",
         params: {
           person_ids: Array.from(idsToSave),
           start_frame: startFrame,
           end_frame: endFrame,
+          path: filePath,
         },
       });
       alert(`Data for ${idsToSave.size} person(s) from frame ${startFrame} to ${endFrame} saved to: ${response.path}`);
