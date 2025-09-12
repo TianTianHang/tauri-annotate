@@ -216,7 +216,7 @@ function App() {
         alert(`Successfully loaded ${response.video_info} video(s).`);
         setPythonReady(true);
         setAppPhase('continuous_tracking');
-        setIsPlaying(true); // 【新增】加载成功后自动开始播放
+        setIsPlaying(false); // 【新增】加载成功后自动开始播放
       } else {
         alert(`Error loading videos: ${response.message}`);
       }
