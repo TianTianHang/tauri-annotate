@@ -34,6 +34,10 @@ function App() {
   const [swapState, setSwapState] = useState<{ active: boolean; ids: number[] }>({ active: false, ids: [] });
   // [NEW] Added state variable to track the application's current phase.
   const [appPhase, setAppPhase] = useState<'initial' | 'initial_run' | 'user_selection' | 'continuous_tracking' | 'lost_track' | 'tracking complete'>('initial');
+  // [NEW] State for frame skip input and calculation
+  const [finalAnalysisFrameSkip, setFinalAnalysisFrameSkip] = useState(1);
+  const [sourceFps, setSourceFps] = useState(30); // Default video source FPS
+  const [targetFps, setTargetFps] = useState(1);   // Default desired target FPS
 
 
   // --- Refs for DOM elements ---
@@ -334,11 +338,26 @@ function App() {
     }
   }
 
+  // [MODIFIED] Added frame skip logic to runFinalAnalysis
   async function runFinalAnalysis() {
     if (idsToSave.size === 0) {
       alert("Please select one or more persons to analyze from the 'Persons to Save' list.");
       return;
     }
+    
+    // Prompt the user for the frame skip interval
+    const skipPrompt = `请输入分析时跳过的帧数（例如，跳过18帧，则输入18）。
+    您也可以使用右侧的帧率计算器来确定。`;
+    let skipFrames = prompt(skipPrompt, finalAnalysisFrameSkip.toString());
+    
+    if (skipFrames === null || isNaN(parseInt(skipFrames, 10))) {
+      alert("分析已取消。请输入有效的数字。");
+      return;
+    }
+    
+    const frameSkip = parseInt(skipFrames, 10);
+    setFinalAnalysisFrameSkip(frameSkip);
+
     setIsPlaying(false);
     try {
       alert("Starting final analysis... This may take a moment.");
@@ -346,6 +365,7 @@ function App() {
         command: "run_final_analysis",
         params: {
           person_ids: Array.from(idsToSave),
+          frame_skip: frameSkip
         },
       });
       const response = JSON.parse(responseStr);
@@ -360,6 +380,14 @@ function App() {
       alert(`An error occurred during analysis: ${error}`);
     }
   }
+
+  // [NEW] Function to calculate frame skip interval
+  const calculateFrameSkip = () => {
+    if (sourceFps < 1 || targetFps < 1) {
+      return 1;
+    }
+    return Math.floor(sourceFps / targetFps);
+  };
 
   // --- ID Swap Logic ---
 
@@ -552,6 +580,50 @@ function App() {
           </button>
           <button onClick={saveSelectedData}>Save Selected</button>
           <button onClick={runFinalAnalysis}>Run Analysis</button>
+        </div>
+          <div className="form-group" style={{ marginTop: '1rem' }}>
+          <label htmlFor="fps-input">Playback Speed: {fps} FPS</label>
+          <input
+            id="fps-input"
+            type="range"
+            min="1"
+            max="30"
+            value={fps}
+            onChange={(e) => setFps(Number(e.target.value))}
+            disabled={isPlaying}
+          />
+        </div>
+
+        <hr />
+
+        {/* [NEW] Frame Rate Calculator */}
+        <h2>Calculation FPS</h2>
+        <div className="frame-rate-calculator">
+          <div className="form-group">
+            <label htmlFor="source-fps">Vedio FPS:</label>
+            <input 
+              id="source-fps" 
+              type="number" 
+              value={sourceFps} 
+              onChange={(e) => setSourceFps(parseFloat(e.target.value))} 
+              min="1"
+            />
+          </div>
+          <div className="form-group">
+            <label htmlFor="target-fps">target FPS :</label>
+            <input 
+              id="target-fps" 
+              type="number" 
+              value={targetFps} 
+              onChange={(e) => setTargetFps(parseFloat(e.target.value))} 
+              min="0.1"
+            />
+          </div>
+          <div className="calculation-result">
+            <p>
+              skip fps: <strong>{calculateFrameSkip()}</strong>
+            </p>
+          </div>
         </div>
 
         <div className="form-group" style={{ marginTop: '1rem' }}>
