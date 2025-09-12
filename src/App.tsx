@@ -171,14 +171,7 @@ function App() {
     await getSpecificFrame(frameData.frame_number - 1);
   }
 
-  // [NEW] initialAutoRun function
-  const initialAutoRun = async (n: number) => {
-    for (let i = 0; i < n; i++) {
-      await getNextFrame();
-    }
-    setIsPlaying(false);
-    setAppPhase('user_selection');
-  };
+
   // [NEW] A new handler to manually begin the continuous tracking phase.
   const handleStartTracking = () => {
     if (idsToSave.size === 0) {
@@ -223,8 +216,7 @@ function App() {
         alert(`Successfully loaded ${response.video_info} video(s).`);
         setPythonReady(true);
         setAppPhase('initial_run');
-        // Start the initial automatic run
-        await initialAutoRun(20);
+        setIsPlaying(false); // 【新增】加载成功后自动开始播放
       } else {
         alert(`Error loading videos: ${response.message}`);
       }
@@ -542,7 +534,7 @@ function App() {
           <button onClick={getNextFrame}>Next Frame</button>
           <button onClick={getPrevFrame} disabled={!frameData || frameData.frame_number <= 1}>Prev Frame</button>
           {/* [MODIFIED] "Auto Play" button disabled logic */}
-          <button onClick={() => setIsPlaying(p => !p)} disabled={appPhase !== 'continuous_tracking'}>
+          <button onClick={() => setIsPlaying(p => !p)}>
             {isPlaying ? "Pause" : "Auto Play"}
           </button>
           <button onClick={saveSelectedData}>Save Selected</button>
