@@ -215,8 +215,8 @@ function App() {
       if (response.status === 'success') {
         alert(`Successfully loaded ${response.video_info} video(s).`);
         setPythonReady(true);
-        setAppPhase('initial_run');
-        setIsPlaying(false); // 【新增】加载成功后自动开始播放
+        setAppPhase('continuous_tracking');
+        setIsPlaying(true); // 【新增】加载成功后自动开始播放
       } else {
         alert(`Error loading videos: ${response.message}`);
       }
@@ -534,7 +534,7 @@ function App() {
           <button onClick={getNextFrame}>Next Frame</button>
           <button onClick={getPrevFrame} disabled={!frameData || frameData.frame_number <= 1}>Prev Frame</button>
           {/* [MODIFIED] "Auto Play" button disabled logic */}
-          <button onClick={() => setIsPlaying(p => !p)}>
+          <button onClick={() => setIsPlaying(p => !p)} disabled={appPhase !== 'continuous_tracking'}>
             {isPlaying ? "Pause" : "Auto Play"}
           </button>
           <button onClick={saveSelectedData}>Save Selected</button>
