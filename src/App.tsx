@@ -33,7 +33,7 @@ function App() {
   const [fps, setFps] = useState(10);
   const [swapState, setSwapState] = useState<{ active: boolean; ids: number[] }>({ active: false, ids: [] });
   // [NEW] Added state variable to track the application's current phase.
-  const [appPhase, setAppPhase] = useState<'initial' | 'initial_run' | 'user_selection' | 'continuous_tracking' | 'lost_track'>('initial');
+  const [appPhase, setAppPhase] = useState<'initial' | 'initial_run' | 'user_selection' | 'continuous_tracking' | 'lost_track' | 'tracking complete'>('initial');
 
 
   // --- Refs for DOM elements ---
@@ -74,9 +74,21 @@ function App() {
         params: { target_frame: targetFrame },
       });
       const response: FrameData = JSON.parse(responseStr);
+      if(response.status === "waiting"){
+        // 后端繁忙，直接返回，等待下一个 interval 再次尝试
+        return;
+      }
+      if (response.status === 'finished') {
+        setIsPlaying(false); // 停止自动播放
+        setAppPhase("tracking complete")
+        // alert('Video processing has finished.'); // 提示用户
+        console.log('Video processing has finished.');
+        return;
+      }
       frameNumberRef.current = response.frame_number;
       setFrameData(response);
-      console.log(frameData?.frame_number)
+      // 应该 log 来自响应的最新帧号，而不是旧 state 中的
+      console.log(response.frame_number);
       // Update unique person IDs from all cameras
       setAllUniquePersonIds(prev => {
         const newSet = new Set(prev);
@@ -111,6 +123,7 @@ function App() {
       setIsPlaying(false); // Stop playing on error
       // For demonstration, let's set some mock data on error
       setFrameData(prev => ({
+        status:"success",
         frame_number: (prev?.frame_number || 0) + 1,
         cams: {
           'cam1': {
@@ -684,6 +697,7 @@ function App() {
           {appPhase === 'initial_run' && <p>Initial analysis in progress... Please wait.</p>}
           {appPhase === 'user_selection' && <p>Analysis complete. Please select the persons you want to track from the list on the right.</p>}
           {appPhase === 'lost_track' && <p style={{ color: 'red' }}>A tracked person has been lost! Please perform a manual correction below.</p>}
+          {appPhase === 'tracking complete' && <p>All Tracking complete.</p>}
         </div>
         <div className="frame-and-camera-controls">
           <p>Frame: {frameData?.frame_number ?? 'Loading...'}</p>

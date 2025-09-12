@@ -11,6 +11,8 @@ export interface CamData {
 }
 
 export interface FrameData {
+  status: string;
+  message?:string;
   frame_number: number;
   cams: Record<string, CamData>;
 }
