@@ -14,7 +14,7 @@ import DetectionList from "./components/DetectionList";
 import PersonList from "./components/PersonList";
 import Header from "./components/Header";
 import FrameControls from "./components/FrameControls";
-import FrameProgressBar from "./components/FrameProgressBar";
+
 
 function App() {
   const [frameData, setFrameData] = useState<FrameData | null>(null);
