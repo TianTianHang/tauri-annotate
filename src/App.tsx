@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, MouseEvent, useCallback } from "react";
+import { useState, useRef, useEffect, MouseEvent, useCallback, useMemo } from "react";
 import { invoke } from "@tauri-apps/api/tauri";
 import { open, save } from "@tauri-apps/api/dialog";
 import "./App.css";
@@ -142,7 +142,7 @@ function App() {
       }));
       if (!selectedCamId) setSelectedCamId('cam1');
     }
-  }, [pythonReady, selectedCamId, frameData, idsToSave, appPhase]);
+  }, [pythonReady, selectedCamId, idsToSave, appPhase]);
 
   const getSpecificFrame = useCallback(async (frameNumber: number) => {
     if (!pythonReady) {
@@ -788,7 +788,8 @@ function App() {
             </div>
           </div>
         </div>
-        <VideoDisplay
+        {
+          useMemo(()=> <VideoDisplay
           frameData={displayFrameData}
           imageRef={imageRef}
           canvasRef={canvasRef}
@@ -797,7 +798,9 @@ function App() {
           handleMouseDown={handleMouseDown}
           handleMouseMove={handleMouseMove}
           handleMouseUp={handleMouseUp}
-        />
+        />,[displayFrameData])
+        }
+       
       </main>
     </div>
   );
