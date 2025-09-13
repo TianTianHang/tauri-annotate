@@ -39,6 +39,7 @@ function App() {
   const [finalAnalysisFrameSkip, setFinalAnalysisFrameSkip] = useState(1);
   const [sourceFps, setSourceFps] = useState(30);
   const [targetFps, setTargetFps] = useState(1);
+  const [jumpFrame, setJumpFrame] = useState("");
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
@@ -538,11 +539,19 @@ function App() {
       <main className="main-content">
         <Header appPhase={appPhase} />
         <FrameControls frameData={frameData} selectedCamId={selectedCamId} setSelectedCamId={setSelectedCamId} />
-        <FrameProgressBar
-          currentFrame={frameData?.frame_number || 0}
-          lastFrame={lastFrame}
-          onFrameChange={getSpecificFrame}
-        />
+        <div className="frame-jump-controls">
+          <input
+            type="number"
+            value={jumpFrame}
+            onChange={(e) => setJumpFrame(e.target.value)}
+            placeholder={`Frame number (max: ${lastFrame})`}
+          />
+          <button onClick={() => getSpecificFrame(Number(jumpFrame))}>
+            Jump to Frame
+          </button>
+          <span>Current Frame: {frameData?.frame_number || 0}</span>
+          <span>Last Frame: {lastFrame}</span>
+        </div>
         {
           useMemo(() => <VideoDisplay
             frameData={displayFrameData}

@@ -20,7 +20,7 @@ const FrameControls: React.FC<FrameControlsProps> = ({ frameData, selectedCamId,
   };
 
   const handleNext = () => {
-    setStartIndex(prev => Math.min(prev + 1, camIds.length - camsPerPage));
+    setStartIndex(prev => Math.min(prev + camsPerPage, camIds.length - camsPerPage));
   };
 
   return (
