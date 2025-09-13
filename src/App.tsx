@@ -424,7 +424,8 @@ function App() {
 
     if (confirmed) {
       try {
-        await invoke("invoke_python", { command: "swap_ids", params: { start_frame: frameData.frame_number, id1, id2 } });
+        await invoke("invoke_python", { command: "swap_ids", 
+          params: { start_frame: frameData.frame_number, id1, id2 } });
         alert("IDs swapped successfully!");
         await getSpecificFrame(frameData.frame_number);
       } catch (error) {
@@ -437,7 +438,7 @@ function App() {
 
   // --- Canvas Drawing Logic ---
 
-  const getCanvasPoint = (e: MouseEvent<HTMLCanvasElement>): Point | null => {
+  const getCanvasPoint = useCallback((e: MouseEvent<HTMLCanvasElement>): Point | null => {
     const canvas = canvasRef.current;
     if (!canvas) return null;
     const rect = canvas.getBoundingClientRect();
@@ -447,9 +448,9 @@ function App() {
       x: (e.clientX - rect.left) * scaleX,
       y: (e.clientY - rect.top) * scaleY,
     };
-  };
+  }, []);
 
-  const handleMouseDown = (e: MouseEvent<HTMLCanvasElement>) => {
+  const handleMouseDown = useCallback((e: MouseEvent<HTMLCanvasElement>) => {
     if (!selectedPersonId) {
       alert("在绘制前请从侧边栏选择一个人物ID。");
       return;
@@ -462,21 +463,21 @@ function App() {
     if (!point) return;
     setIsDrawing(true);
     setCurrentDrawingBox([point.x, point.y, point.x, point.y]);
-  };
+  }, [getCanvasPoint, manualBboxes.length, selectedPersonId]);
 
-  const handleMouseMove = (e: MouseEvent<HTMLCanvasElement>) => {
-    if (!isDrawing) return;
+  const handleMouseMove = useCallback((e: MouseEvent<HTMLCanvasElement>) => {
+    if (!isDrawing || !currentDrawingBox) return;
     const point = getCanvasPoint(e);
-    if (!point || !currentDrawingBox) return;
+    if (!point) return;
     setCurrentDrawingBox([currentDrawingBox[0], currentDrawingBox[1], point.x, point.y]);
-  };
+  }, [currentDrawingBox, getCanvasPoint, isDrawing]);
 
-  const handleMouseUp = () => {
+  const handleMouseUp = useCallback(() => {
     if (!isDrawing || !currentDrawingBox) return;
     setIsDrawing(false);
     setManualBboxes(prev => [...prev, currentDrawingBox]);
     setCurrentDrawingBox(null);
-  };
+  }, [currentDrawingBox, isDrawing]);
 
   // --- Effects ---
 
