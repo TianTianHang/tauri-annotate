@@ -14,6 +14,7 @@ import DetectionList from "./components/DetectionList";
 import PersonList from "./components/PersonList";
 import Header from "./components/Header";
 import FrameControls from "./components/FrameControls";
+import FrameProgressBar from "./components/FrameProgressBar";
 
 function App() {
   const [frameData, setFrameData] = useState<FrameData | null>(null);
@@ -28,6 +29,7 @@ function App() {
   const [imageSize, setImageSize] = useState({ width: 0, height: 0 });
   const [allUniquePersonIds, setAllUniquePersonIds] = useState<Set<number>>(new Set());
   const [startFrame, setStartFrame] = useState(1);
+  const [lastFrame, setLastFrame] = useState(1)
   const [endFrame, setEndFrame] = useState(1);
   const [maxFrame, setMaxFrame] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -79,6 +81,7 @@ function App() {
         return;
       }
       frameNumberRef.current = response.frame_number;
+      setLastFrame(response.last_frame_num)
       setFrameData(response);
       console.log(response.frame_number);
       setAllUniquePersonIds(prev => {
@@ -118,7 +121,8 @@ function App() {
             ],
             frame_number: 1
           }
-        }
+        },
+        last_frame_num: 1
       }));
       if (!selectedCamId) setSelectedCamId('cam1');
     }
@@ -534,6 +538,11 @@ function App() {
       <main className="main-content">
         <Header appPhase={appPhase} />
         <FrameControls frameData={frameData} selectedCamId={selectedCamId} setSelectedCamId={setSelectedCamId} />
+        <FrameProgressBar
+          currentFrame={frameData?.frame_number || 0}
+          lastFrame={lastFrame}
+          onFrameChange={getSpecificFrame}
+        />
         {
           useMemo(() => <VideoDisplay
             frameData={displayFrameData}

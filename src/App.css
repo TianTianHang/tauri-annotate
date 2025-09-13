@@ -54,7 +54,12 @@ h2 {
 
 .camera-selection .camera-buttons {
   display: flex;
+  align-items: center; /* Vertically align items */
   gap: 0.5rem; /* Space between camera buttons */
+}
+
+.arrow-button {
+  padding: 0.6em 0.8em; /* Adjust padding for a better look */
 }
 
 button {
@@ -248,4 +253,16 @@ input {
   font-style: italic;
   color: #aaa;
   word-break: break-word;
+}
+.frame-progress-bar {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 10px;
+  box-sizing: border-box;
+}
+
+.frame-progress-bar .slider {
+  flex-grow: 1;
+  margin-right: 10px;
 }

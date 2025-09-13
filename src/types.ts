@@ -15,6 +15,7 @@ export interface FrameData {
   message?:string;
   frame_number: number;
   cams: Record<string, CamData>;
+  last_frame_num: number;
 }
 
 export interface Point {
