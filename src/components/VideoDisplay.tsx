@@ -113,7 +113,8 @@ function VideoDisplay({ frameData, imageRef, canvasRef, imageSize, setImageSize,
             >
                 <div
                     style={{
-                        transform: `scale(${zoom}) translate(${pan.x / zoom}px, ${pan.y / zoom}px)`,
+                        transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+                        transformOrigin: '0 0',
                         width: '100%',
                         height: '100%',
                         display: 'grid',
