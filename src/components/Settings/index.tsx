@@ -24,7 +24,10 @@ function Settings({ onApply }: { onApply: () => void }) {
 
   useEffect(() => {
     const unlistenPromise = listen<string>('python-log', (event) => {
-      setLogs(prevLogs => [...prevLogs, event.payload]);
+      setLogs(prevLogs => {
+              const newLogs = [...prevLogs, event.payload];
+              return newLogs.length > 50 ? newLogs.slice(-50) : newLogs;
+      });
     });
 
     return () => {

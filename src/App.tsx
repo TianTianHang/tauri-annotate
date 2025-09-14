@@ -308,13 +308,13 @@ function App() {
       alert("Please select one or more persons to analyze from the 'Persons to Save' list.");
       return;
     }
-    const skipPrompt = `请输入分析时跳过的帧数（例如，跳过18帧，则输入18）。\n您也可以使用右侧的帧率计算器来确定。`;
-    let skipFrames = prompt(skipPrompt, finalAnalysisFrameSkip.toString());
-    if (skipFrames === null || isNaN(parseInt(skipFrames, 10))) {
-      alert("分析已取消。请输入有效的数字。");
-      return;
-    }
-    const frameSkip = parseInt(skipFrames, 10);
+    // const skipPrompt = `请输入分析时跳过的帧数（例如，跳过18帧，则输入18）。\n您也可以使用右侧的帧率计算器来确定。`;
+    // let skipFrames = prompt(skipPrompt, finalAnalysisFrameSkip.toString());
+    // if (skipFrames === null || isNaN(parseInt(skipFrames, 10))) {
+    //   alert("分析已取消。请输入有效的数字。");
+    //   return;
+    // }
+    const frameSkip = 0;
     setFinalAnalysisFrameSkip(frameSkip);
     setIsPlaying(false);
     try {
