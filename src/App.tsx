@@ -40,6 +40,7 @@ function App() {
   const [sourceFps, setSourceFps] = useState(30);
   const [targetFps, setTargetFps] = useState(1);
   const [jumpFrame, setJumpFrame] = useState("");
+  const [defaultFileName, setDefaultFileName] = useState('');
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
@@ -188,6 +189,11 @@ function App() {
         console.log('No folder selected.');
         return;
       }
+      const pathParts = selectedPath.replace(/\\/g, '/').split('/');
+      const folderName = pathParts.pop() || pathParts.pop(); 
+      if (folderName) {
+        setDefaultFileName(`${folderName}.json`);
+      }
       setFrameData(null);
       setSelectedCamId(null);
       setAllUniquePersonIds(new Set());
@@ -275,7 +281,8 @@ function App() {
     try {
       const filePath = await save({
         title: "Save Selected Person Data",
-        filters: [{ name: 'JSON', extensions: ['json'] }]
+        filters: [{ name: 'JSON', extensions: ['json'] }],
+        defaultPath: defaultFileName,
       });
       if (!filePath) {
         return;
