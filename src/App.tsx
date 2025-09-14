@@ -36,7 +36,7 @@ function App() {
   const [fps, setFps] = useState(2);
   const [swapState, setSwapState] = useState<{ active: boolean; ids: number[] }>({ active: false, ids: [] });
   const [appPhase, setAppPhase] = useState<'initial' | 'initial_run' | 'user_selection' | 'continuous_tracking' | 'lost_track' | 'tracking complete'>('initial');
-  const [finalAnalysisFrameSkip, setFinalAnalysisFrameSkip] = useState(1);
+ 
   const [sourceFps, setSourceFps] = useState(30);
   const [targetFps, setTargetFps] = useState(1);
   const [jumpFrame, setJumpFrame] = useState("");
@@ -315,7 +315,6 @@ function App() {
     //   return;
     // }
     const frameSkip = 0;
-    setFinalAnalysisFrameSkip(frameSkip);
     setIsPlaying(false);
     try {
       alert("Starting final analysis... This may take a moment.");
