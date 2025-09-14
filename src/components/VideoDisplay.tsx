@@ -46,9 +46,23 @@ function VideoDisplay({ frameData, imageRef, canvasRef, imageSize, setImageSize,
 
     const onWheel = (e: WheelEvent<HTMLDivElement>) => {
         e.preventDefault();
+        const rect = e.currentTarget.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+
         const zoomFactor = 1.1;
-        const newZoom = e.deltaY < 0 ? zoom * zoomFactor : zoom / zoomFactor;
-        setZoom(Math.max(1, newZoom));
+        const oldZoom = zoom;
+        const newZoom = e.deltaY < 0 ? oldZoom * zoomFactor : oldZoom / zoomFactor;
+        
+        const finalZoom = Math.max(1, newZoom);
+
+        if (finalZoom === oldZoom) return;
+
+        const newPanX = mouseX - (mouseX - pan.x) * (finalZoom / oldZoom);
+        const newPanY = mouseY - (mouseY - pan.y) * (finalZoom / oldZoom);
+
+        setZoom(finalZoom);
+        setPan({ x: newPanX, y: newPanY });
     };
 
     const wrappedHandleMouseDown = (e: MouseEvent<HTMLCanvasElement>) => {
