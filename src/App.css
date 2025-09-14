@@ -279,3 +279,26 @@ input {
 .frame-jump-controls input {
   width: 150px;
 }
+
+.video-display-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.zoom-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background-color: #1e1e1e;
+  padding: 0.25rem 0.5rem;
+  border-radius: 8px;
+}
+
+.zoom-controls .zoom-level {
+  font-weight: bold;
+  min-width: 4ch;
+  text-align: center;
+}
