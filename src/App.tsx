@@ -377,6 +377,7 @@ function App() {
         await invoke("invoke_python", { command: "swap_ids", params: { start_frame: frameData.frame_number, id1, id2 } });
         alert("IDs swapped successfully!");
         await getSpecificFrame(frameData.frame_number);
+        setAppPhase("continuous_tracking")
       } catch (error) {
         console.error("Error swapping IDs:", error);
         alert(`Failed to swap IDs: ${error}`);
