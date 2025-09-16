@@ -6,7 +6,7 @@ export interface Bbox {
 
 export interface CamData {
   bboxes: Bbox[];
-  image_data: string; // Base64 encoded image string
+  image_data?: string; // Base64 encoded image string
   frame_number: number;
 }
 

@@ -14,7 +14,7 @@ interface VideoDisplayProps {
 }
 
 function VideoDisplay({ frameData, imageRef, canvasRef, imageSize, setImageSize, handleMouseDown, handleMouseMove, handleMouseUp }: VideoDisplayProps) {
-    const [currentImageSrc, setCurrentImageSrc] = useState<string | null>(null);
+    const [currentImageSrc, setCurrentImageSrc] = useState<string | undefined>(undefined);
     const [zoom, setZoom] = useState(1);
     const [pan, setPan] = useState({ x: 0, y: 0 });
     const [isPanning, setIsPanning] = useState(false);
@@ -22,7 +22,7 @@ function VideoDisplay({ frameData, imageRef, canvasRef, imageSize, setImageSize,
 
     useEffect(() => {
         if (!frameData?.image_data) {
-            setCurrentImageSrc(null);
+            setCurrentImageSrc(undefined);
             return;
         }
 

@@ -70,7 +70,7 @@ function App() {
       const targetFrame = frameNumberRef.current + 1;
       const responseStr = await invoke<string>("invoke_python", {
         command: "process_frame",
-        params: { target_frame: targetFrame },
+        params: { target_frame: targetFrame, selected_cam_id: selectedCamId },
       });
       const response: FrameData = JSON.parse(responseStr);
       if (response.status === "waiting") {
@@ -138,7 +138,7 @@ function App() {
     try {
       const responseStr = await invoke<string>("invoke_python", {
         command: "process_frame",
-        params: { target_frame: frameNumber },
+        params: { target_frame: frameNumber,selected_cam_id_from_frontend: selectedCamId },
       });
       const response: FrameData = JSON.parse(responseStr);
       frameNumberRef.current = response.frame_number;
@@ -558,6 +558,9 @@ function App() {
           </button>
           <span>Current Frame: {frameData?.frame_number || 0}</span>
           <span>Last Frame: {lastFrame}</span>
+          <button onClick={()=>{setAppPhase("continuous_tracking")}}>
+            continue tracking
+          </button>
         </div>
         {
           useMemo(() => <VideoDisplay
