@@ -237,6 +237,8 @@ input {
   cursor: pointer;
   transition: background-color 0.2s;
   border: 1px solid transparent;
+  box-sizing: border-box; /* ✅ 防止 padding + border 撑大高度 */
+  margin: 0; /* ✅ 清除 margin，避免干扰虚拟滚动布局 */
 }
 
 .person-list li:hover {
