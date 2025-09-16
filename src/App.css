@@ -157,6 +157,9 @@ input {
   /* Apply the same scaling constraints to both elements */
   max-width: 100%;
   max-height: 80vh;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  perspective: 1000px;
 }
 
 #video-frame {

@@ -33,7 +33,7 @@ function App() {
   const [endFrame, setEndFrame] = useState(1);
   const [maxFrame, setMaxFrame] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [fps, setFps] = useState(2);
+  const [fps, setFps] = useState(1);
   const [swapState, setSwapState] = useState<{ active: boolean; ids: number[] }>({ active: false, ids: [] });
   const [appPhase, setAppPhase] = useState<'initial' | 'initial_run' | 'user_selection' | 'continuous_tracking' | 'lost_track' | 'tracking complete'>('initial');
  
